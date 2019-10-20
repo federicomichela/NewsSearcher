@@ -5,32 +5,40 @@ const NYTNEWS_CLIENT_ID = 'o93HBhMAC1xGaF0lj4JdgoBY3GAERZsO';
     const form = document.querySelector('#search-form');
     const searchField = document.querySelector('#search-keyword');
     const responseContainer = document.querySelector('#response-container');
+    let searchQuery;
 
     form.addEventListener('submit', function (e) {
-        let url, apiKey;
+        let url, apiKey, options;
 
         e.preventDefault();
         responseContainer.innerHTML = '';
 
+        searchQuery = searchField.value;
+
         // load image from search
-        url = `https://api.unsplash.com/search/photos?page=1&query=${searchField.value}`;
+        url = `https://api.unsplash.com/search/photos?page=1&query=${searchQuery}`;
         apiKey = `Client-ID ${UNSPLASH_CLIENT_ID}`;
-        sendRequest(url, apiKey, addImage, notifyError.bind('image'));
+        options = {
+            'headers': {
+                'Authorization': apiKey
+            }
+        };
+        sendRequestWithFetch(url, options, addImage, notifyError.bind('image'));
 
         // load NY Time search related News
         url = `https://api.nytimes.com/svc/search/v2/articlesearch.json?q=${searchField.value}&api-key=${NYTNEWS_CLIENT_ID}`;
-        sendRequest(url, null, loadNews, notifyError.bind('article'));
+        sendRequestWithXhr(url, null, loadNews, notifyError.bind('article'));
     });
 
     /**
-     * Send a GET http request
+     * Send a GET http request using XHR
      *
      * @param url {String}
      * @param apiKey {String}
      * @param onSuccess {Function}
      * @param onError {Function}
      */
-    const sendRequest = (url, apiKey, onSuccess, onError) => {
+    const sendRequestWithXhr = (url, apiKey, onSuccess, onError) => {
         const unsplashRequest = new XMLHttpRequest();
 
         unsplashRequest.onload = onSuccess;
@@ -42,6 +50,21 @@ const NYTNEWS_CLIENT_ID = 'o93HBhMAC1xGaF0lj4JdgoBY3GAERZsO';
         }
 
         unsplashRequest.send();
+    };
+
+    /**
+     * Send a GET http request using fetch
+     *
+     * @param url {String}
+     * @param options {Object}
+     * @param onSuccess {Function}
+     * @param onError {Function}
+     */
+    const sendRequestWithFetch = (url, options, onSuccess, onError) => {
+        fetch(url, options)
+            .then(response => response.json())
+            .then(onSuccess)
+            .catch(onError);
     };
 
     /**
@@ -62,9 +85,11 @@ const NYTNEWS_CLIENT_ID = 'o93HBhMAC1xGaF0lj4JdgoBY3GAERZsO';
      * @param response {ProgressEvent}
      */
     const addImage = response => {
-        if (response.currentTarget.status === 200) {
-            const data = JSON.parse(response.currentTarget.response);
-            const searchQuery = response.currentTarget.responseURL.split('query=')[1];
+        let successFromFetch = Boolean(response.results);
+        let successFromXhr = response.currentTarget && response.currentTarget.status === 200;
+
+        if (successFromFetch || successFromXhr) {
+            const data = successFromFetch ? response : JSON.parse(response.currentTarget.response);
             const firstImage = data.results[0];
             let htmlContent = `
                 <figure>
@@ -85,8 +110,11 @@ const NYTNEWS_CLIENT_ID = 'o93HBhMAC1xGaF0lj4JdgoBY3GAERZsO';
      * @param response {ProgressEvent}
      */
     const loadNews = response => {
-        if (response.currentTarget.status === 200) {
-            const data = JSON.parse(response.currentTarget.response);
+        let successFromFetch = response.status === 'OK';
+        let successFromXhr = response.currentTarget && response.currentTarget.status === 200;
+
+        if (successFromFetch || successFromXhr) {
+            const data = successFromFetch ? response : JSON.parse(response.currentTarget.response);
             const allNews = data.response.docs;
             let htmlContent = [];
 
